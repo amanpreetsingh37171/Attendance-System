@@ -1,0 +1,91 @@
+import pandas as pd
+import numpy as np
+import Mark_Attendance_Camera
+from datetime import datetime
+import csv_storage
+
+df1 = pd.read_csv("Data\employees_info.csv")
+df2 = pd.read_csv("Data/employees_embeddings.csv")
+
+attendance_mean = Mark_Attendance_Camera.attendance_mean_embedding
+
+attendance_mean_embedding = np.array(attendance_mean)
+
+database_embeddings = {}
+
+for index, row in df2.iterrows():
+    
+    emp_id = row['Employee_ID']
+    emb_list = list(map(float, row['Embedding'].split(",")))
+    emb_array = np.array(emb_list)
+    
+    database_embeddings[emp_id] = emb_array
+
+def cosine_similarity(a, b):
+    dot_product = np.dot(a, b)
+    norm1 = np.linalg.norm(a)
+    norm2 = np.linalg.norm(b)
+    return dot_product/(norm1*norm2)
+
+def match_face(attendance_mean_embedding, registered_embedding, threshold = 0.7):
+    best_score = -1
+    best_id = None
+
+    for emp_id, stored_embedding in registered_embedding.items():
+        
+        score = cosine_similarity(attendance_mean_embedding, stored_embedding)
+        
+        if score > best_score:
+            best_score = score
+            best_id = emp_id
+    
+    if best_score >= threshold:
+        return best_id, best_score
+    else:
+        return None, best_score
+    
+def mark_attendance_logic(emp_id, emp_name):
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    day_str = now.strftime("%A")
+    current_time = now.time()
+    time_str = now.strftime("%H:%M:%S")  # exact clock time
+
+    in_status = half_day_status = out_status = ""
+    in_time = half_day_time = out_time = ""
+
+    # Define time ranges
+    in_start = datetime.strptime("08:50", "%H:%M").time()
+    in_end   = datetime.strptime("21:00", "%H:%M").time()
+    half_start = datetime.strptime("13:00", "%H:%M").time()
+    half_end   = datetime.strptime("16:00", "%H:%M").time()
+    out_start = datetime.strptime("17:00", "%H:%M").time()
+    out_end   = datetime.strptime("19:00", "%H:%M").time()
+
+    if in_start <= current_time <= in_end:
+        in_status = "Present"
+        in_time = time_str
+    elif half_start <= current_time <= half_end:
+        half_day_status = "Halfday Taken"
+        half_day_time = time_str
+    elif out_start <= current_time <= out_end:
+        out_status = "Out_At"
+        out_time = time_str
+    else:
+        return False, "Attendance time not valid"
+
+    # Save attendance including the exact time
+    csv_storage.save_attendance(
+        emp_id,
+        emp_name,
+        date_str,
+        day_str,
+        in_status,
+        half_day_status,
+        out_status,
+        in_time,
+        half_day_time,
+        out_time
+    )
+
+    return True, "Attendance marked successfully"
