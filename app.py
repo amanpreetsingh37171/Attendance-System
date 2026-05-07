@@ -11,9 +11,16 @@ from csv_storage import (
     EMP_FILE
 )
 
-from Register_Camera import capture_faces_streamlit
-from Mark_Attendance_Camera import capture_attendance_face_streamlit
-from Embedding_Matcher import match_face, database_embeddings, mark_attendance_logic
+# Lazy-load face modules so deployment can render the UI even if camera packages fail.
+def load_face_modules():
+    try:
+        from Register_Camera import capture_faces_streamlit
+        from Mark_Attendance_Camera import capture_attendance_face_streamlit
+        from Embedding_Matcher import match_face, database_embeddings, mark_attendance_logic
+        return capture_faces_streamlit, capture_attendance_face_streamlit, match_face, database_embeddings, mark_attendance_logic
+    except Exception as e:
+        st.error(f"Face module import failed: {e}")
+        return None, None, None, None, None
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -56,7 +63,13 @@ if mode == "Register Employee":
     # ---------------------------
     # CAMERA BUTTON
     # ---------------------------
+    capture_faces_streamlit, _, _, _, _ = load_face_modules()
+
     if st.button("📷 Open Camera"):
+
+        if capture_faces_streamlit is None:
+            st.error("Face capture modules are unavailable in this environment.")
+            st.stop()
 
         if not emp_id or not emp_name:
             st.warning("Please fill Employee ID and Name first.")
@@ -132,8 +145,19 @@ elif mode == "Mark Attendance":
     st.subheader("📸 Mark Attendance")
     st.write("Look at the camera to mark your attendance.")
 
+    capture_faces_streamlit, capture_attendance_face_streamlit, match_face, database_embeddings, mark_attendance_logic = load_face_modules()
+
+    if capture_attendance_face_streamlit is None or match_face is None:
+        st.error("Face attendance modules are unavailable in this environment.")
+        st.stop()
+
     # Load employee info for name lookup
-    df1 = pd.read_csv("Data/employees_info.csv")
+    emp_info_path = os.path.join("Data", "employees_info.csv")
+    if not os.path.exists(emp_info_path):
+        st.warning("No registered employee data found. Please register employees first.")
+        st.stop()
+
+    df1 = pd.read_csv(emp_info_path)
 
     frame_placeholder = st.empty()
     message_placeholder = st.empty()  # Placeholder to show messages

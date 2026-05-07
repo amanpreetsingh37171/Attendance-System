@@ -1,24 +1,46 @@
+import os
 import pandas as pd
 import numpy as np
 import Mark_Attendance_Camera
 from datetime import datetime
 import csv_storage
 
-df1 = pd.read_csv("Data\employees_info.csv")
-df2 = pd.read_csv("Data/employees_embeddings.csv")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "Data")
+EMP_FILE = os.path.join(DATA_DIR, "employees_info.csv")
+EMB_FILE = os.path.join(DATA_DIR, "employees_embeddings.csv")
 
-attendance_mean = Mark_Attendance_Camera.attendance_mean_embedding
 
-attendance_mean_embedding = np.array(attendance_mean)
+def load_csv(path, columns):
+    if not os.path.exists(path):
+        return pd.DataFrame(columns=columns)
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame(columns=columns)
+
+
+df1 = load_csv(EMP_FILE, [
+    "Employee_ID",
+    "Employee_Name",
+    "Phone_Number",
+    "Email",
+    "Address",
+    "Joining_Date"
+])
+
+df2 = load_csv(EMB_FILE, ["Employee_ID", "Embedding"])
+
+attendance_mean = getattr(Mark_Attendance_Camera, "attendance_mean_embedding", None)
+attendance_mean_embedding = np.array(attendance_mean) if attendance_mean is not None else None
+
 
 database_embeddings = {}
 
 for index, row in df2.iterrows():
-    
-    emp_id = row['Employee_ID']
-    emb_list = list(map(float, row['Embedding'].split(",")))
+    emp_id = row["Employee_ID"]
+    emb_list = list(map(float, row["Embedding"].split(",")))
     emb_array = np.array(emb_list)
-    
     database_embeddings[emp_id] = emb_array
 
 def cosine_similarity(a, b):
